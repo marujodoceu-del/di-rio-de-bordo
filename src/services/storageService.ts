@@ -457,10 +457,17 @@ export const storageService = {
     }
   },
 
+  getNextDayDateString(_dayNumber?: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  },
+
   getJourneyStats(): {
     completedDays: number;
     inProgressDays: number;
     notStartedDays: number;
+    futureDays: number;
     totalDays: number;
     daysRemaining: number;
     streak: number;
@@ -520,6 +527,7 @@ export const storageService = {
       completedDays,
       inProgressDays,
       notStartedDays,
+      futureDays: notStartedDays,
       totalDays,
       daysRemaining,
       streak,

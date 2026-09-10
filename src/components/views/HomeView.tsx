@@ -1,5 +1,6 @@
 import React from 'react';
 import { AppTab, DailyJournalEntry, UserProfileData } from '../../types';
+import { storageService } from '../../services/storageService';
 import { ATOMIC_METHOD_CYCLE } from '../../data/atomicMethodCycle';
 import { COSMIC_DAY_QUOTES } from '../../data/cosmicQuotes';
 import {
@@ -50,9 +51,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onSelectDay,
 }) => {
   const quote = COSMIC_DAY_QUOTES[currentDay - 1] || COSMIC_DAY_QUOTES[0];
-  const pendingTasks = todayEntry.commitments.filter((t) => t.text.trim() && !t.completed).length;
-  const completedTasks = todayEntry.commitments.filter((t) => t.text.trim() && t.completed).length;
-  const totalDefined = pendingTasks + completedTasks;
+  const todayTasks = storageService.getCommitmentsForDay(currentDay);
+  const activeTasks = todayTasks.filter((t) => t.text && t.text.trim().length > 0);
+  const completedTasks = activeTasks.filter((t) => t.completed).length;
+  const totalDefined = activeTasks.length;
   const currentStage = getEvolutionStageForDay(currentDay);
 
   return (

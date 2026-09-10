@@ -163,6 +163,22 @@ export const DailyJournalView: React.FC<DailyJournalViewProps> = ({
     []
   );
 
+  // Garante salvar imediatamente se o usuário sair da página ou trocar de aba
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      storageService.saveEntry(entry);
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handleBeforeUnload);
+    };
+  }, [entry]);
+
   // Atualiza posição do usuário para que ele retorne exatamente de onde parou
   const changeQuestionIndex = (newIndex: number) => {
     stopNarration();
@@ -297,6 +313,10 @@ export const DailyJournalView: React.FC<DailyJournalViewProps> = ({
     } else if (field === 'task' && typeof index === 'number') {
       updated.commitments[index].text =
         (updated.commitments[index].text ? updated.commitments[index].text + ' ' : '') + text;
+      updated.commitments[index].originDayNumber = selectedDay;
+      updated.commitments[index].targetDayNumber = selectedDay + 1;
+      updated.commitments[index].plannedDate = storageService.getNextDayDateString(selectedDay);
+      updated.commitments[index].status = updated.commitments[index].completed ? 'concluido' : 'pendente';
     } else if (field === 'gratitude' && typeof index === 'number') {
       updated.gratitudes[index] =
         (updated.gratitudes[index] ? updated.gratitudes[index] + ' ' : '') + text;
@@ -955,6 +975,10 @@ BOA NOITE... DURMA EM PAZ!`;
                       onChange={(e) => {
                         const updated = { ...entry };
                         updated.commitments[idx].text = e.target.value;
+                        updated.commitments[idx].originDayNumber = selectedDay;
+                        updated.commitments[idx].targetDayNumber = selectedDay + 1;
+                        updated.commitments[idx].plannedDate = storageService.getNextDayDateString(selectedDay);
+                        updated.commitments[idx].status = updated.commitments[idx].completed ? 'concluido' : 'pendente';
                         triggerAutoSave(updated);
                       }}
                       placeholder={`Ação prioritária nº ${idx + 1}...`}

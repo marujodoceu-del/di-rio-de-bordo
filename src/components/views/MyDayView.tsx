@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { DailyJournalEntry, AppTab } from '../../types';
+import React, { useState, useEffect, useCallback } from 'react';
+import { DailyJournalEntry, AppTab, CommitmentTask } from '../../types';
 import { storageService } from '../../services/storageService';
 import { COSMIC_DAY_QUOTES } from '../../data/cosmicQuotes';
 import {
@@ -15,12 +15,13 @@ import {
   Plus,
   Sparkles,
   ArrowRight,
-  Orbit,
-  Calendar,
-  Award,
   Clock,
   Target,
   FileEdit,
+  Award,
+  X,
+  Calendar,
+  Layers,
 } from 'lucide-react';
 
 interface MyDayViewProps {
@@ -35,44 +36,72 @@ export const MyDayView: React.FC<MyDayViewProps> = ({
   onSelectDay,
 }) => {
   const [selectedDay, setSelectedDay] = useState<number>(currentDay);
+  const [tasks, setTasks] = useState<CommitmentTask[]>(() =>
+    storageService.getCommitmentsForDay(currentDay)
+  );
   const [entry, setEntry] = useState<DailyJournalEntry>(() =>
     storageService.getEntryForDay(currentDay)
   );
   const [newTaskText, setNewTaskText] = useState<string>('');
   const [isAddingTask, setIsAddingTask] = useState<boolean>(false);
 
-  useEffect(() => {
+  // Recarrega compromissos e entrada do dia selecionado
+  const reloadData = useCallback(() => {
+    const loadedTasks = storageService.getCommitmentsForDay(selectedDay);
+    setTasks(loadedTasks);
     setEntry(storageService.getEntryForDay(selectedDay));
   }, [selectedDay]);
 
-  // Atualizar quando houver evento de storage
   useEffect(() => {
-    const handleUpdate = () => {
-      setEntry(storageService.getEntryForDay(selectedDay));
+    reloadData();
+  }, [reloadData]);
+
+  // Sincroniza em tempo real com mudanças do storage
+  useEffect(() => {
+    const handleStorageUpdate = () => {
+      reloadData();
     };
-    window.addEventListener('metodo_atomico_update', handleUpdate);
-    return () => window.removeEventListener('metodo_atomico_update', handleUpdate);
-  }, [selectedDay]);
+    window.addEventListener('metodo_atomico_update', handleStorageUpdate);
+    return () => window.removeEventListener('metodo_atomico_update', handleStorageUpdate);
+  }, [reloadData]);
 
   const handleToggleTask = (taskId: string) => {
-    const updated = storageService.toggleDayTask(selectedDay, taskId);
-    setEntry({ ...updated });
+    storageService.toggleCommitment(selectedDay, taskId);
+    setTasks(storageService.getCommitmentsForDay(selectedDay));
   };
 
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskText.trim()) return;
-    const updated = storageService.addTaskToDay(selectedDay, newTaskText.trim());
-    setEntry({ ...updated });
+    storageService.addCommitmentToDay(selectedDay, newTaskText.trim());
+    setTasks(storageService.getCommitmentsForDay(selectedDay));
     setNewTaskText('');
     setIsAddingTask(false);
   };
 
   const quote = COSMIC_DAY_QUOTES[selectedDay - 1] || COSMIC_DAY_QUOTES[0];
-  const activeTasks = entry.commitments.filter((t) => t.text.trim().length > 0);
+  const activeTasks = tasks.filter((t) => t.text && t.text.trim().length > 0);
   const completedTasks = activeTasks.filter((t) => t.completed).length;
   const totalTasks = activeTasks.length;
   const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+  // Informações da noite anterior (confiança e motivo)
+  const prevDayEntry = selectedDay > 1 ? storageService.getEntryForDay(selectedDay - 1) : null;
+  const confidenceScore = prevDayEntry?.commitmentScore || entry.commitmentScore;
+  const confidenceReason = prevDayEntry?.commitmentReason || entry.commitmentReason;
+
+  const formatCompletedTime = (isoString?: string) => {
+    if (!isoString) return '';
+    try {
+      const d = new Date(isoString);
+      return `${d.getHours().toString().padStart(2, '0')}:${d
+        .getMinutes()
+        .toString()
+        .padStart(2, '0')}`;
+    } catch {
+      return '';
+    }
+  };
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 py-8 space-y-8 animate-fadeIn pb-24">
@@ -95,12 +124,13 @@ export const MyDayView: React.FC<MyDayViewProps> = ({
                 Meu Dia • Ações & Compromissos
               </h1>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
-                As ações compromissadas ontem à noite no Diário de Bordo para construir um dia atômico hoje.
+                Compromissos definidos no Diário da noite anterior para transformar intenções em realidade hoje.
               </p>
             </div>
 
             {/* Day Selector */}
             <div className="flex items-center gap-2 self-start sm:self-center">
+              <span className="text-xs text-slate-400 font-mono">Visualizar:</span>
               <select
                 value={selectedDay}
                 onChange={(e) => {
@@ -108,7 +138,7 @@ export const MyDayView: React.FC<MyDayViewProps> = ({
                   setSelectedDay(d);
                   onSelectDay(d);
                 }}
-                className="bg-[#070A11] border border-[#F5C563]/50 text-[#F5C563] font-bold text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#F5C563] font-mono"
+                className="bg-[#070A11] border border-[#F5C563]/50 text-[#F5C563] font-bold text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#F5C563] font-mono cursor-pointer"
               >
                 {Array.from({ length: 21 }, (_, i) => i + 1).map((d) => (
                   <option key={d} value={d}>
@@ -122,12 +152,15 @@ export const MyDayView: React.FC<MyDayViewProps> = ({
           {/* Progress Metric Widget */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
             <div className="bg-[#070A11] border border-white/[0.06] p-4 rounded-2xl flex flex-col justify-between">
-              <span className="text-xs text-slate-400 font-medium">Progresso das Ações</span>
+              <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
+                <span>Progresso do Dia</span>
+                <span className="font-mono text-[#F5C563] font-bold">{progressPercent}%</span>
+              </div>
               <div className="flex items-baseline gap-2 mt-1">
                 <span className="text-2xl font-bold font-mono text-white">
-                  {completedTasks} / {totalTasks || 6}
+                  {completedTasks} de {totalTasks}
                 </span>
-                <span className="text-xs font-mono text-[#F5C563] font-bold">({progressPercent}%)</span>
+                <span className="text-xs text-slate-400 font-sans">concluídos</span>
               </div>
               <div className="mt-3">
                 <CosmicProgress value={progressPercent} showPercentage={false} size="sm" />
@@ -138,22 +171,28 @@ export const MyDayView: React.FC<MyDayViewProps> = ({
               <span className="text-xs text-slate-400 font-medium">Confiança Declarada</span>
               <div className="flex items-baseline gap-2 mt-1">
                 <span className="text-2xl font-bold font-mono text-[#F5C563]">
-                  {entry.commitmentScore} <span className="text-xs text-slate-400">/ 10</span>
+                  {confidenceScore || 10}/10
+                </span>
+                <span className="text-xs text-slate-400 font-sans">
+                  {confidenceScore && confidenceScore >= 8 ? 'Alta convicção' : 'Foco em execução'}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 truncate mt-2">
-                {entry.commitmentReason || 'Calibrado no ritual noturno'}
+              <p className="text-[11px] text-slate-500 mt-2 truncate">
+                {confidenceReason ? `"${confidenceReason}"` : 'Compromisso inabalável'}
               </p>
             </div>
 
             <div className="bg-[#070A11] border border-white/[0.06] p-4 rounded-2xl flex flex-col justify-between">
-              <span className="text-xs text-slate-400 font-medium">Princípio Cósmico</span>
-              <div className="text-xs font-serif italic text-slate-200 mt-1 line-clamp-2">
-                &ldquo;{quote.concept}&rdquo;
-              </div>
-              <span className="text-[10px] text-[#F5C563] font-mono mt-2">
-                — {quote.author}
-              </span>
+              <span className="text-xs text-slate-400 font-medium">Conceito do Dia</span>
+              <h4
+                className="text-sm font-bold text-white uppercase font-serif mt-1 truncate"
+                style={{ fontFamily: "'Cinzel', serif" }}
+              >
+                {quote.concept}
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-2 line-clamp-1 italic">
+                &ldquo;{quote.quote}&rdquo;
+              </p>
             </div>
           </div>
         </div>
@@ -168,10 +207,12 @@ export const MyDayView: React.FC<MyDayViewProps> = ({
                 className="text-lg sm:text-xl font-bold text-white tracking-wide uppercase font-serif"
                 style={{ fontFamily: "'Cinzel', serif" }}
               >
-                Lista de Ações do Dia {selectedDay}
+                Meus Compromissos de Hoje • Dia {selectedDay}
               </h2>
               <p className="text-xs text-slate-400">
-                Clique em cada ação à medida que for realizando ao longo do dia.
+                {totalTasks > 0
+                  ? `${completedTasks} de ${totalTasks} compromissos concluídos. Toque na caixa de seleção para registrar a realização.`
+                  : 'Nenhum compromisso registrado para hoje ainda.'}
               </p>
             </div>
 
@@ -188,7 +229,12 @@ export const MyDayView: React.FC<MyDayViewProps> = ({
               <CosmicButton
                 variant="secondary"
                 size="sm"
-                onClick={() => onNavigate('diario')}
+                onClick={() => {
+                  // Se os compromissos de hoje vieram do diário anterior, navega para o diário anterior
+                  const targetDiaryDay = selectedDay > 1 ? selectedDay - 1 : selectedDay;
+                  onSelectDay(targetDiaryDay);
+                  onNavigate('diario');
+                }}
                 iconLeft={<FileEdit className="w-3.5 h-3.5 text-[#F5C563]" />}
               >
                 Editar no Diário
@@ -196,157 +242,219 @@ export const MyDayView: React.FC<MyDayViewProps> = ({
             </div>
           </div>
 
-        {/* Modal / Form para Adicionar Ação Complementar */}
-        {isAddingTask && (
-          <form
-            onSubmit={handleAddTask}
-            className="p-4 rounded-2xl bg-slate-950 border border-amber-400/40 space-y-3 animate-fadeIn"
-          >
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
-              <span>Nova Ação Complementar:</span>
-              <button
-                type="button"
-                onClick={() => setIsAddingTask(false)}
-                className="text-slate-500 hover:text-slate-300 text-xs"
-              >
-                Cancelar
-              </button>
-            </div>
-            <input
-              type="text"
-              autoFocus
-              value={newTaskText}
-              onChange={(e) => setNewTaskText(e.target.value)}
-              placeholder="Digite a ação a ser realizada hoje..."
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                type="submit"
-                className="px-4 py-2 rounded-xl bg-amber-400 text-slate-950 text-xs font-bold shadow hover:bg-amber-300"
-              >
-                Salvar Ação
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* Tasks List */}
-        {activeTasks.length === 0 ? (
-          <div className="text-center py-12 space-y-3 bg-slate-950/40 rounded-2xl border border-dashed border-slate-800 p-6">
-            <CheckSquare className="w-10 h-10 text-slate-600 mx-auto" />
-            <h3 className="text-sm font-bold text-slate-300 uppercase font-serif">
-              Nenhuma ação compromissada para este dia ainda
-            </h3>
-            <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Abra o Diário de Bordo do Dia {selectedDay} para responder às perguntas noturnas e definir suas 6 ações.
-            </p>
-            <button
-              onClick={() => onNavigate('diario')}
-              className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-400 text-slate-950 text-xs font-bold hover:bg-amber-300 transition"
+          {/* Form para Adicionar Ação Rápida */}
+          {isAddingTask && (
+            <form
+              onSubmit={handleAddTask}
+              className="p-4 rounded-2xl bg-[#070A11] border border-[#F5C563]/50 space-y-3 animate-fadeIn"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Definir Ações no Diário</span>
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {activeTasks.map((task, idx) => (
-              <div
-                key={task.id}
-                onClick={() => handleToggleTask(task.id)}
-                className={`group cursor-pointer flex items-center justify-between p-4 rounded-2xl border transition-all select-none ${
-                  task.completed
-                    ? 'bg-slate-950/40 border-slate-800/80 text-slate-400'
-                    : 'bg-slate-950/90 hover:bg-slate-950 border-slate-700/80 hover:border-amber-400/50 text-slate-100 shadow-sm'
-                }`}
-              >
-                <div className="flex items-center gap-3.5 flex-1 min-w-0">
-                  <button
-                    type="button"
-                    className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition ${
-                      task.completed
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                        : 'border border-slate-600 group-hover:border-amber-400 text-transparent'
-                    }`}
-                  >
-                    {task.completed ? (
-                      <CheckCircle2 className="w-4 h-4 fill-emerald-500/20" />
-                    ) : (
-                      <Circle className="w-4 h-4" />
-                    )}
-                  </button>
-
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    <span className="font-mono text-xs font-bold text-amber-400/80 shrink-0">
-                      0{idx + 1}.
-                    </span>
-                    <span
-                      className={`text-sm leading-relaxed transition ${
-                        task.completed
-                          ? 'line-through text-slate-500 font-sans'
-                          : 'text-slate-100 font-medium font-sans'
-                      }`}
-                    >
-                      {task.text}
-                    </span>
-                  </div>
-                </div>
-
-                <span
-                  className={`text-[11px] font-mono font-medium px-2 py-0.5 rounded-full shrink-0 ml-3 ${
-                    task.completed
-                      ? 'bg-emerald-400/10 text-emerald-400 border border-emerald-400/20'
-                      : 'bg-slate-800 text-slate-400 border border-slate-700'
-                  }`}
-                >
-                  {task.completed ? 'Concluída' : 'Pendente'}
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
+                <span className="flex items-center gap-1.5 text-[#F5C563]">
+                  <Plus className="w-3.5 h-3.5" />
+                  Nova Ação para o Dia {selectedDay}:
                 </span>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingTask(false)}
+                  className="text-slate-500 hover:text-slate-300 text-xs p-1"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-            ))}
-          </div>
-        )}
+              <input
+                type="text"
+                autoFocus
+                value={newTaskText}
+                onChange={(e) => setNewTaskText(e.target.value)}
+                placeholder="Ex.: Treinar musculação, estudar 30 min..."
+                className="w-full bg-[#0E131F] border border-white/[0.12] rounded-xl p-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-[#F5C563]"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddingTask(false)}
+                  className="px-3 py-1.5 rounded-xl text-xs text-slate-400 hover:text-white"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-xl bg-[#F5C563] text-slate-950 text-xs font-bold shadow hover:bg-amber-300 transition"
+                >
+                  Salvar Ação
+                </button>
+              </div>
+            </form>
+          )}
 
-        {/* Motivation Card when 100% completed */}
-        {progressPercent === 100 && totalTasks > 0 && (
-          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-4 animate-fadeIn">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0">
-                <Award className="w-6 h-6" />
-              </div>
-              <div>
-                <h4 className="font-bold text-sm text-emerald-300">
-                  Parabéns! Todas as ações do Dia {selectedDay} foram concluídas!
-                </h4>
-                <p className="text-xs text-emerald-200/80">
-                  Você cumpriu 100% dos seus compromissos atômicos. Esta noite no Diário será um momento de profunda celebração.
+          {/* Tasks List */}
+          {activeTasks.length === 0 ? (
+            <div className="text-center py-12 space-y-4 bg-[#070A11]/60 rounded-2xl border border-dashed border-white/[0.08] p-6">
+              <CheckSquare className="w-12 h-12 text-slate-600 mx-auto" />
+              <div className="space-y-1">
+                <h3
+                  className="text-base font-bold text-slate-200 uppercase font-serif"
+                  style={{ fontFamily: "'Cinzel', serif" }}
+                >
+                  Nenhum compromisso registrado para o Dia {selectedDay}
+                </h3>
+                <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                  Os compromissos de hoje são planejados no Diário de Bordo da noite anterior (Etapa 6: Planejamento do Dia Seguinte). Você também pode adicionar ações diretamente agora.
                 </p>
               </div>
-            </div>
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                <button
+                  onClick={() => setIsAddingTask(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#F5C563] text-slate-950 text-xs font-bold hover:bg-amber-300 transition shadow"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Adicionar Ação Rápida</span>
+                </button>
 
+                <button
+                  onClick={() => {
+                    const targetDay = selectedDay > 1 ? selectedDay - 1 : selectedDay;
+                    onSelectDay(targetDay);
+                    onNavigate('diario');
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0E131F] border border-white/[0.10] text-slate-200 text-xs font-medium hover:bg-[#141B2D] transition"
+                >
+                  <Sparkles className="w-4 h-4 text-[#F5C563]" />
+                  <span>Planejar no Diário (Dia {selectedDay > 1 ? selectedDay - 1 : selectedDay})</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {activeTasks.map((task, idx) => {
+                const isInherited = task.originDayNumber && task.originDayNumber !== selectedDay;
+                return (
+                  <div
+                    key={task.id}
+                    onClick={() => handleToggleTask(task.id)}
+                    className={`group cursor-pointer flex items-center justify-between p-4 rounded-2xl border transition-all duration-200 select-none ${
+                      task.completed
+                        ? 'bg-[#070A11]/60 border-emerald-500/20 text-slate-400'
+                        : 'bg-[#070A11] hover:bg-[#0C101A] border-white/[0.08] hover:border-[#F5C563]/40 text-slate-100 shadow-sm'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                      {/* Checkbox button */}
+                      <button
+                        type="button"
+                        aria-label={task.completed ? 'Marcar como pendente' : 'Marcar como concluída'}
+                        className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition ${
+                          task.completed
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                            : 'border border-white/[0.2] group-hover:border-[#F5C563] text-transparent'
+                        }`}
+                      >
+                        {task.completed ? (
+                          <CheckCircle2 className="w-4 h-4 fill-emerald-500/20" />
+                        ) : (
+                          <Circle className="w-4 h-4" />
+                        )}
+                      </button>
+
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-mono text-xs font-bold text-[#F5C563] shrink-0">
+                            0{idx + 1}.
+                          </span>
+                          <span
+                            className={`text-sm leading-relaxed transition ${
+                              task.completed
+                                ? 'line-through text-slate-500 font-sans'
+                                : 'text-slate-100 font-medium font-sans'
+                            }`}
+                          >
+                            {task.text}
+                          </span>
+                        </div>
+
+                        {/* Sub-meta: Origin & Timestamp */}
+                        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500 font-mono">
+                          {isInherited ? (
+                            <span>Definido no Diário do Dia {task.originDayNumber}</span>
+                          ) : (
+                            <span>Ação direta de hoje</span>
+                          )}
+                          {task.completed && task.completedAt && (
+                            <span>• Concluído às {formatCompletedTime(task.completedAt)}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Status Pill */}
+                    <span
+                      className={`text-[11px] font-mono font-medium px-2.5 py-1 rounded-full shrink-0 ml-3 flex items-center gap-1.5 ${
+                        task.completed
+                          ? 'bg-emerald-400/10 text-emerald-400 border border-emerald-400/20'
+                          : 'bg-slate-800/80 text-slate-400 border border-white/[0.06]'
+                      }`}
+                    >
+                      {task.completed ? (
+                        <>
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                          <span>Concluída</span>
+                        </>
+                      ) : (
+                        <span>Pendente</span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Celebration Card when 100% completed */}
+          {progressPercent === 100 && totalTasks > 0 && (
+            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fadeIn">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0">
+                  <Award className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-emerald-300">
+                    Parabéns! Todos os compromissos do Dia {selectedDay} foram concluídos!
+                  </h4>
+                  <p className="text-xs text-emerald-200/80">
+                    Você cumpriu 100% das suas ações atômicas planejadas. Esta noite no Diário de Bordo será um momento de profunda consolidação.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  onSelectDay(selectedDay);
+                  onNavigate('diario');
+                }}
+                className="px-4 py-2 rounded-xl bg-emerald-400 text-slate-950 font-bold text-xs shrink-0 hover:bg-emerald-300 transition"
+              >
+                Fazer Diário Noturno
+              </button>
+            </div>
+          )}
+
+          {/* Bottom Shortcut to Night Diary */}
+          <div className="pt-4 border-t border-white/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400">
+            <span className="flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-[#F5C563]" />
+              Ao término do dia, responda o Diário de Bordo para consolidar os aprendizados.
+            </span>
             <button
-              onClick={() => onNavigate('diario')}
-              className="px-4 py-2 rounded-xl bg-emerald-400 text-slate-950 font-bold text-xs shrink-0 hover:bg-emerald-300 transition"
+              onClick={() => {
+                onSelectDay(selectedDay);
+                onNavigate('diario');
+              }}
+              className="flex items-center gap-1.5 text-[#F5C563] font-bold hover:underline"
             >
-              Fazer Diário Noturno
+              <span>Ir para o Diário Noturno (Dia {selectedDay})</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
-        )}
-
-        {/* Bottom Shortcut to Night Diary */}
-        <div className="pt-4 border-t border-white/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400">
-          <span className="flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 text-[#F5C563]" />
-            Ao término do dia, responda o Diário de Bordo para consolidar os aprendizados.
-          </span>
-          <button
-            onClick={() => onNavigate('diario')}
-            className="flex items-center gap-1.5 text-[#F5C563] font-bold hover:underline"
-          >
-            <span>Ir para o Diário Noturno</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
         </div>
       </CosmicCard>
     </div>

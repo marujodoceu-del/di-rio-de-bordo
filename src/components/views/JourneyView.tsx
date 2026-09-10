@@ -19,6 +19,7 @@ import {
   BookOpen,
   CheckSquare,
   Circle,
+  Clock,
   Flame,
   Zap,
   Layers,
@@ -48,22 +49,30 @@ export const JourneyView: React.FC<JourneyViewProps> = ({
     return is100Unlocked ? currentPhase.phase : 1;
   });
 
+  const [futureDayNotice, setFutureDayNotice] = useState<number | null>(null);
+
   const handleOpenDay = (day: number) => {
     // Se o dia estiver além dos 21 e os 100 dias não estiverem desbloqueados, avisa
     if (day > 21 && !is100Unlocked) {
+      return;
+    }
+    // Dias futuros não devem permitir edição antecipada se ainda não foram vividos
+    if (day > currentDay && !entries[day]?.completed) {
+      setFutureDayNotice(day);
+      setTimeout(() => setFutureDayNotice(null), 3500);
       return;
     }
     onSelectDay(day);
     onNavigate('diario');
   };
 
-  const getDayStatus = (day: number) => {
+  const getDayStatus = (day: number): 'completed' | 'current' | 'in_progress' | 'future' | 'locked' => {
     if (day > 21 && !is100Unlocked) return 'locked';
     const entry = entries[day];
     if (entry && entry.completed) return 'completed';
     if (day === currentDay) return 'current';
-    if (day < currentDay) return 'missed';
-    return 'upcoming';
+    if (day < currentDay) return 'in_progress';
+    return 'future';
   };
 
   const activePhase = JOURNEY_100_PHASES.find((p) => p.phase === selectedPhaseNumber) || JOURNEY_100_PHASES[0];
@@ -88,7 +97,7 @@ export const JourneyView: React.FC<JourneyViewProps> = ({
                 <span>
                   {is100Unlocked
                     ? 'JORNADA DE 100 DIAS • A GRANDE EXPANSÃO'
-                    : 'JORNADA DE 21 DIAS • DO ÁTOMO AO INFINITO'}
+                    : 'JORNADA INICIAL • DO ÁTOMO AO INFINITO'}
                 </span>
               </div>
 
@@ -96,64 +105,104 @@ export const JourneyView: React.FC<JourneyViewProps> = ({
                 className="text-2xl sm:text-4xl font-bold text-white tracking-wide uppercase font-serif"
                 style={{ fontFamily: "'Cinzel', serif" }}
               >
-                {is100Unlocked ? 'A Grande Jornada de 100 Dias' : 'Minha Jornada de Evolução'}
+                {is100Unlocked ? 'A Grande Jornada de 100 Dias' : 'Minha Trilha de 21 Dias'}
               </h1>
 
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
                 {is100Unlocked
                   ? 'Você concluiu o Despertar inicial e agora navega pelas 4 fases da expansão cósmica. Cada dia consolida sua identidade inabalável.'
-                  : 'Acompanhe sua trilha inicial de 21 dias. Ao completar o ciclo inaugural, a interface se expandirá revelando os 100 dias.'}
+                  : 'Acompanhe seu avanço diário. Complete a trilha inicial de 21 dias para desbloquear a grande expansão de 100 dias.'}
               </p>
             </div>
 
-            {/* Quick Metrics */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full lg:w-96">
-              <div className="bg-[#070A11] border border-white/[0.06] p-3.5 rounded-2xl">
-                <span className="text-[11px] text-slate-400 font-medium">Concluídos</span>
-                <div className="text-2xl font-bold text-emerald-400 font-mono mt-1">
+            {/* Quick Metrics Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 w-full lg:w-[460px]">
+              <div className="bg-[#070A11] border border-white/[0.06] p-3 rounded-2xl">
+                <span className="text-[10px] text-slate-400 font-medium uppercase font-mono">Dia Atual</span>
+                <div className="text-xl font-bold text-[#F5C563] font-mono mt-0.5">
+                  Dia {currentDay}
+                </div>
+                <span className="text-[10px] text-slate-500 font-sans">Em curso</span>
+              </div>
+
+              <div className="bg-[#070A11] border border-white/[0.06] p-3 rounded-2xl">
+                <span className="text-[10px] text-slate-400 font-medium uppercase font-mono">Concluídos</span>
+                <div className="text-xl font-bold text-emerald-400 font-mono mt-0.5">
                   {stats.completedDays}{' '}
                   <span className="text-xs text-slate-500 font-normal">
                     / {is100Unlocked ? '100' : '21'}
                   </span>
                 </div>
+                <span className="text-[10px] text-slate-500 font-sans">Dias finalizados</span>
               </div>
 
-              <div className="bg-[#070A11] border border-white/[0.06] p-3.5 rounded-2xl">
-                <span className="text-[11px] text-slate-400 font-medium">Progresso</span>
-                <div className="text-2xl font-bold text-[#F5C563] font-mono mt-1">
+              <div className="bg-[#070A11] border border-white/[0.06] p-3 rounded-2xl">
+                <span className="text-[10px] text-slate-400 font-medium uppercase font-mono">Faltam</span>
+                <div className="text-xl font-bold text-amber-300 font-mono mt-0.5">
+                  {stats.daysRemaining}{' '}
+                  <span className="text-xs text-slate-500 font-normal">dias</span>
+                </div>
+                <span className="text-[10px] text-slate-500 font-sans">Para os 21 dias</span>
+              </div>
+
+              <div className="bg-[#070A11] border border-white/[0.06] p-3 rounded-2xl">
+                <span className="text-[10px] text-slate-400 font-medium uppercase font-mono">Progresso</span>
+                <div className="text-xl font-bold text-[#F5C563] font-mono mt-0.5">
                   {stats.percentJourney}%
                 </div>
+                <span className="text-[10px] text-slate-500 font-sans">Da trilha inicial</span>
               </div>
 
-              <div className="col-span-2 sm:col-span-1 bg-[#070A11] border border-white/[0.06] p-3.5 rounded-2xl">
-                <span className="text-[11px] text-slate-400 font-medium">Fase Atual</span>
-                <div
-                  className="text-sm font-bold font-mono mt-1 uppercase"
-                  style={{ color: currentPhase.themeColor }}
-                >
-                  Fase 0{currentPhase.id}
+              <div className="bg-[#070A11] border border-white/[0.06] p-3 rounded-2xl">
+                <span className="text-[10px] text-slate-400 font-medium uppercase font-mono">Em Andamento</span>
+                <div className="text-xl font-bold text-sky-400 font-mono mt-0.5">
+                  {stats.inProgressDays}
                 </div>
-                <span className="text-[10px] text-slate-400 block font-sans">
-                  {currentPhase.name}
-                </span>
+                <span className="text-[10px] text-slate-500 font-sans">Dias ativos</span>
+              </div>
+
+              <div className="bg-[#070A11] border border-white/[0.06] p-3 rounded-2xl">
+                <span className="text-[10px] text-slate-400 font-medium uppercase font-mono">Dias Futuros</span>
+                <div className="text-xl font-bold text-slate-400 font-mono mt-0.5">
+                  {stats.futureDays}
+                </div>
+                <span className="text-[10px] text-slate-500 font-sans">Aguardando</span>
               </div>
             </div>
           </div>
 
-          {/* Big Progress Bar */}
+          {/* Big Progress Bar com Exemplo solicitado */}
           <div className="pt-2">
             <CosmicProgress
               value={stats.percentJourney}
               label={
                 is100Unlocked
-                  ? `Dia ${currentDay} em andamento • ${stats.completedDays} de 100 dias concluídos (${stats.percentJourney}%)`
-                  : `Dia ${currentDay} em andamento • ${stats.completedDays} de 21 dias concluídos`
+                  ? `JORNADA DE 100 DIAS: ${stats.completedDays} / 100 DIAS (Faltam ${Math.max(0, 100 - stats.completedDays)} dias) • ${stats.percentJourney}% concluído`
+                  : `JORNADA INICIAL: ${stats.completedDays} / 21 DIAS (Faltam ${stats.daysRemaining} dias) • ${stats.percentJourney}% concluído`
               }
               size="md"
             />
           </div>
         </div>
       </CosmicCard>
+
+      {/* Aviso de Dia Futuro caso tente clicar */}
+      {futureDayNotice && (
+        <div className="p-4 rounded-2xl bg-[#0E131F] border border-amber-400/40 text-xs text-amber-200 flex items-center justify-between gap-3 animate-fadeIn shadow-lg">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="w-4 h-4 text-[#F5C563] shrink-0" />
+            <span>
+              O <strong>Dia {futureDayNotice}</strong> é um dia futuro da jornada. No Método Atômico, cada dia deve ser vivido e refletido em seu momento presente. Conclua o <strong>Dia {currentDay}</strong> primeiro para avançar com consistência.
+            </span>
+          </div>
+          <button
+            onClick={() => setFutureDayNotice(null)}
+            className="text-slate-400 hover:text-white text-xs px-2 py-1"
+          >
+            Entendido
+          </button>
+        </div>
+      )}
 
       {/* CALL-TO-ACTION ESPECIAL SE DIA 21 CONCLUÍDO E AINDA NÃO DESBLOQUEADO */}
       {!is100Unlocked && entries[21]?.completed && (
@@ -370,6 +419,8 @@ export const JourneyView: React.FC<JourneyViewProps> = ({
 
             const isCompleted = status === 'completed';
             const isCurrent = status === 'current';
+            const isInProgress = status === 'in_progress';
+            const isFuture = status === 'future';
             const isLocked = status === 'locked';
 
             return (
@@ -378,12 +429,14 @@ export const JourneyView: React.FC<JourneyViewProps> = ({
                 onClick={() => handleOpenDay(dayNum)}
                 className={`group relative rounded-2xl p-4 transition-all duration-200 flex flex-col justify-between select-none ${
                   isLocked
-                    ? 'bg-[#070A11]/50 border border-white/[0.04] opacity-50 cursor-not-allowed'
+                    ? 'bg-[#070A11]/40 border border-white/[0.04] opacity-40 cursor-not-allowed'
                     : isCompleted
-                    ? 'bg-[#070A11] hover:bg-[#0C101A] border border-emerald-500/40 shadow-sm cursor-pointer'
+                    ? 'bg-[#070A11] hover:bg-[#0C101A] border border-emerald-500/40 shadow-sm cursor-pointer hover:border-emerald-400'
                     : isCurrent
-                    ? 'bg-[#0E131F] border border-[#F5C563] shadow-[0_0_15px_rgba(245,197,99,0.15)] ring-1 ring-[#F5C563]/40 cursor-pointer'
-                    : 'bg-[#070A11]/80 hover:bg-[#0C101A] border border-white/[0.06] text-slate-400 cursor-pointer'
+                    ? 'bg-[#0E131F] border-2 border-[#F5C563] shadow-[0_0_20px_rgba(245,197,99,0.18)] cursor-pointer'
+                    : isInProgress
+                    ? 'bg-[#0A0E18] hover:bg-[#0E1422] border border-sky-500/40 cursor-pointer'
+                    : 'bg-[#070A11]/60 hover:bg-[#0C101A] border border-white/[0.04] text-slate-500 cursor-pointer'
                 }`}
               >
                 {/* Card Header */}
@@ -398,7 +451,9 @@ export const JourneyView: React.FC<JourneyViewProps> = ({
                             ? 'bg-emerald-500/20 text-emerald-300'
                             : isCurrent
                             ? 'bg-[#F5C563] text-[#05070B] font-bold'
-                            : 'bg-white/[0.06] text-slate-400'
+                            : isInProgress
+                            ? 'bg-sky-500/20 text-sky-300'
+                            : 'bg-white/[0.04] text-slate-400'
                         }`}
                       >
                         DIA {dayNum}
@@ -412,6 +467,8 @@ export const JourneyView: React.FC<JourneyViewProps> = ({
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                     ) : isCurrent ? (
                       <Sparkles className="w-4 h-4 text-[#F5C563] animate-pulse shrink-0" />
+                    ) : isInProgress ? (
+                      <Clock className="w-3.5 h-3.5 text-sky-400 shrink-0" />
                     ) : (
                       <Circle className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                     )}
@@ -425,7 +482,9 @@ export const JourneyView: React.FC<JourneyViewProps> = ({
                         ? 'text-emerald-200'
                         : isCurrent
                         ? 'text-[#F5C563]'
-                        : 'text-slate-300'
+                        : isInProgress
+                        ? 'text-sky-200'
+                        : 'text-slate-400'
                     }`}
                   >
                     {quote.concept}
@@ -438,12 +497,14 @@ export const JourneyView: React.FC<JourneyViewProps> = ({
                     <span className="text-slate-600">Bloqueado</span>
                   ) : isCompleted ? (
                     <span className="text-emerald-400 font-bold">
-                      ✓ {totalTasksCount > 0 ? `${tasksCompletedCount}/${totalTasksCount} ações` : 'Diário feito'}
+                      ✓ Concluído • Revisar
                     </span>
                   ) : isCurrent ? (
-                    <span className="text-[#F5C563] font-bold">Em curso</span>
+                    <span className="text-[#F5C563] font-bold">Em curso hoje</span>
+                  ) : isInProgress ? (
+                    <span className="text-sky-400 font-bold">Em andamento</span>
                   ) : (
-                    <span className="text-slate-500">A realizar</span>
+                    <span className="text-slate-500">Dia Futuro</span>
                   )}
 
                   {!isLocked && (
