@@ -1,6 +1,6 @@
 {
-  "name": "Diário de Bordo Cósmico — 21 Dias",
-  "description": "Diário de Bordo de 21 dias para impressão em PDF (Colorido Cósmico e P&B Gravura Científica), criado para astrônomo, físico e palestrante de desenvolvimento pessoal com rigor de conteúdo e design inspirador.",
+  "name": "Método Atômico — Diário de Bordo",
+  "description": "Aplicativo de desenvolvimento pessoal baseado em uma jornada de 21 dias: Refletir, Perceber, Decidir, Agir, Revisar e Evoluir.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -116,7 +116,7 @@ export const DayQuestionsPage: React.FC<DayQuestionsPageProps> = ({
         <div className="space-y-1">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
             <p className="font-semibold leading-snug flex-1">
-              3.1. Numa escala de 0-10, o quanto você acredita que essas ações contribuirão para um dia produtivo amanhã? Com quais argumentos você confirma sua nota?
+              3.1. O quanto você acredita que estas ações contribuirão para um dia produtivo amanhã? Justifique.
             </p>
             {/* Visual scale indicators */}
             <div className={`flex items-center gap-1 self-start sm:self-center px-1.5 py-0.5 rounded border text-[9px] font-mono shrink-0 ${

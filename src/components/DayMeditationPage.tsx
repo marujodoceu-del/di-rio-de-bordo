@@ -67,7 +67,7 @@ export const DayMeditationPage: React.FC<DayMeditationPageProps> = ({
             <span className={`inline-block border-b font-semibold px-2 min-w-[140px] text-center ${
               isVibrant ? 'border-amber-400/50 text-amber-200' : 'border-neutral-700 text-neutral-900'
             }`}>
-              {profile.coacheeName || "_________________________________"}
+              {profile.coacheeName || "(escreva seu nome)"}
             </span>
           </p>
         </div>
@@ -79,7 +79,7 @@ export const DayMeditationPage: React.FC<DayMeditationPageProps> = ({
             <span className={`inline-block border-b font-semibold px-2 min-w-[140px] text-center ${
               isVibrant ? 'border-amber-400/50 text-amber-200' : 'border-neutral-700 text-neutral-900'
             }`}>
-              {profile.coacheeName || "_________________________________"}
+              {profile.coacheeName || "(escreva seu nome)"}
             </span>
           </p>
         </div>
@@ -91,7 +91,7 @@ export const DayMeditationPage: React.FC<DayMeditationPageProps> = ({
             <span className={`inline-block border-b font-semibold px-2 min-w-[140px] text-center ${
               isVibrant ? 'border-amber-400/50 text-amber-200' : 'border-neutral-700 text-neutral-900'
             }`}>
-              {profile.coacheeName || "_________________________________"}
+              {profile.coacheeName || "(escreva seu nome)"}
             </span>
           </p>
         </div>
